@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#SBATCH --account project_2005718
+#SBATCH --partition small
+#SBATCH --job-name={{ job_name }}
+#SBATCH --output={{ log_file | worker-%A_%a.out }}
+#SBATCH --error={{ log_file | worker-%A_%a.out }}
+#SBATCH --mem-per-cpu={{ memory | 8192 }}
+#SBATCH --array=1-{{ n_jobs }}
+#SBATCH --cpus-per-task={{ cores | 1 }}
+#SBATCH --ntasks=1
+#SBATCH --time={{ time | 1:00:00 }}
+#SBATCH --gres=nvme:{{ temp_space | 10 }}
+
+# we may inherit some singularity-related variables from the main process
+# which are problematic.
+for V in $(export | egrep -o "(SINGULARITY|APPTAINER)[^=]*"); do
+unset $V
+done
+
+export CMQ_AUTH={{ auth }}
+export OMP_STACKSIZE=8096
+export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+
+if [ -d "$LOCAL_SCRATCH" ] ; then
+  echo "found local scratch at $LOCAL_SCRATCH"
+  export TMPDIR=$LOCAL_SCRATCH
+  export SINGULARITY_BIND="$(realpath ${LOCAL_SCRATCH}):$(pwd)/userdir"
+  echo "binding: $SINGULARITY_BIND"
+fi
+
+export PATH="/projappl/project_2005718/OptimOTU_v2/bin:$PATH"
+R --vanilla -e 'clustermq:::worker("{{ master }}")'

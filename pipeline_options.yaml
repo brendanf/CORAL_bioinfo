@@ -1,0 +1,178 @@
+###############################################################################
+#  OptimOTU metabarcoding bioinformatics pipeline                             #
+#             Configuration file                                              #
+###############################################################################
+
+# General parameters
+project_name: LifePlan_Malaise
+
+# Files to work with. Specify the extension, e.g. fastq.gz / fq.gz / fastq / fq.
+# The default selects any of these
+# Regular expression syntax is allowed.
+# Only used if no custom sample table is given.
+file_extension: "fastq.gz"
+
+# Specify sequence orientation.
+  # "fwd" = all sequences are expected to be in 5'-3' orientation.
+  # "rev" = all sequences are expected to be in 3'-5' orientation.
+  # "mixed" = the orientation of seqs is expected to be mixed (5'-3' and 3'-5)
+  # "custom" = the orientation of different files is given in a custom sample table (see below)
+  #   In this case there should be a column "orient" which has values "fwd", "rev", or "mixed"
+  # if seqs are "mixed", but using "fwd" setting, then some valid seqs (or samples) will be lost.
+  # if seqs are "fwd", but using "mixed", then ERROR.
+orient: custom
+
+# Sample parameters
+# custom primer trimming parameters per sample can be given as columns in the
+# sample table.
+custom_sample_table: metadata/lifeplan_coi_samples.tsv
+
+# Added reference sequences (leave blank or use NULL if none)
+# "table" should be an Excel *.xlsx spreadsheet, with (at least) two columns in the
+# first sheet:
+#  Culture_ID: unique identifier for the sequence, muse _exactly_ match the sequence
+#    name in "fasta"
+#  Protax_synonym: comma-separated taxonomy string for the new ID, starting with
+#    kingdom.  Be sure to match the taxonomy used by protax, including spelling!
+#    e.g.: Fungi,Basidiomycota,Agaricomycetes,Russulales,Stereaceae,Conferticium_17349,Conferticium_ravum_412824
+added_reference:
+  fasta:
+  table:
+
+############################
+### parallelism settings ###
+############################
+
+# maximum number of ASV sequences to process in a single batch
+max_batchsize: 10000
+
+# for parallel execution (crew or clustermq) how many workers to launch for
+# each sequencing run and orientation. 2 will yield maximum parallelism in most
+# situations.
+workers_per_seqrun: 2
+
+# regardless of the number of sequencing runs, the maximum and minimum number of
+# parallel jobs to run. For crew, the number of jobs actually launched may be
+# less than min_jobs if additional jobs would have nothing to do.
+max_jobs: 100
+min_jobs: 100
+
+################################
+### primer trimming settings ###
+################################
+
+#forward PCR primer (degenerate positions allowed, according to IUPAC codes).
+#Currently supports only a single fwd primer.
+forward_primer: "CCHGAYATRGCHTTYCCHCG" #BF3
+#reverse PCR primer (degenerate positions allowed, according to IUPAC codes).
+#Currently supports only a single rev primer.
+reverse_primer: "TCDGGRTGNCCRAARAAYCA" #BR2
+
+trimming:
+  max_err: 0.2        # max error rate (float; e.g 0.2 = 20% error rate) in the primer sequence; or number of mismatches (int; e.g. 1 = 1 mismatch)
+  min_overlap: 10     # at least 10 bp of primer sequence must be present
+  truncQ_R1: [2, 2]   # truncate ends of R1 at first base with quality score <= N
+  truncQ_R2: [2, 2]   # truncate ends of R2 at first base with quality score <= N
+  max_n: 0            # remove sequences which contain N (after truncation)
+  min_length: 100     # min length after adapter/quality trimming
+  cut_R1: 0           # remove N bases from start of R1
+  cut_R2: 0           # remove N bases from start of R2
+  action: "trim"      # "trim"/"retain" the primer sequences. "trim" = clip primers; "retain" = do not clip the primer after primer has been found.
+
+##################################
+### quality filtering settings ###
+##################################
+filtering:
+  maxEE_R1: 1           # max expected errors for R1 reads
+  maxEE_R2: 1           # max expected errors for R2 reads
+
+####################################
+### tag-jumps filtering settings ###
+####################################
+# comment out this section or set tag_jump to FALSE to omit this step
+tag_jump:
+  f: 0.05             # expected cross-talk rate
+  p: 1                # power to rise the exponent
+
+###############################
+### Amplicon model settings ###
+###############################
+# comment out this section or set model_type to "none" to skip this step
+# statistical sequence models are used for several purposes:
+#  1) aligning ASVs prior to use of protaxA and/or NuMt detection
+#  2) filtering ASVs to remove spurious sequences
+amplicon_model:
+  model_type: HMM      # allowed values are CM, HMM, and none
+  model_file: data/COI.hmm
+
+  # model filter will be skipped if amplicon_model$model_type is "none",
+  # or if this section is commented out.
+  # these values will need to be tuned for different amplicons/models
+  model_filter:
+    max_model_start: 245    # the match must start at this point in the model or earlier
+    min_model_end: 652    # the match must end at this point in the model or later
+    min_model_score: 200   # the match bit score must be at least this
+
+  # producing aligned sequences will be skipped if the value is false
+  model_align: yes
+
+  # numt filter will be skipped if the value is false
+  # numt filter requires model_type == "HMM" and model_align == TRUE
+  numt_filter: yes
+
+###############################
+### Feature-by-sample table ###
+###############################
+# Feature = ASV/OTU/x
+repeats: "sum"     # what to to do with the samples that have the SAME NAME.
+                    # "sum" = merging the replicates
+                    # "error" = STOPs the run if duplicated sample names are detected.
+dense_table: no
+
+#######################
+### Protax settings ###
+#######################
+protax:
+  aligned: yes # "yes" assumes all reference and query sequences are aligned
+  location: "protaxAnimal" # directory where protax is
+  #### Ranks ####
+  # Ranks should be listed from most inclusive to lease inclusive.
+  # The first rank(s) may be given with values (e.g. "- kingdom: Fungi" instead
+  # of just "- kingdom"). This means that the rank(s) are not assigned by
+  # Protax, but rather are assumed to already be known by Protax; i.e. they are
+  # the root of the classification.
+  ranks:
+    - kingdom: Animalia
+    - phylum
+    - class
+    - order
+    - family
+    - subfamily
+    - tribe
+    - genus
+    - species
+
+###################################
+### Outgroup reference settings ###
+###################################
+# The outgroup reference should be taxonomically annotated sequences which
+# include not only the ingroup (i.e., those sequences which Protax can identify)
+# but also (ideally) all other groups which could conceivably be encountered
+# with the chosen marker.
+# Optionally, the taxonomic annotations can be given in another file.
+# (The formatting in this case is idiosyncratic, related to the release format
+# of Unite.)
+# If given, this is also the file used for reference-based chimera checking.
+outgroup_reference:
+  sequences: data/BOLD/BOLD_Public_COI-5P.09-Feb-2024.fasta.gz
+#  taxonomy:
+
+###########################
+### Clustering settings ###
+###########################
+cluster_thresholds: metadata/MBRAVE_thresholds.tsv
+
+######################
+### Guild settings ###
+######################
+guilds: no

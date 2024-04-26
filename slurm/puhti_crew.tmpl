@@ -1,0 +1,35 @@
+#### above this point, lines will be added by crew.cluster, including:
+
+#### #!/bin/sh
+#### #SBATCH --job-name={whatever}
+#### #SBATCH --output={whatever}
+#### #SBATCH --error={whatever}
+#### #SBATCH --mem-per-cpu={whatever}
+#### #SBATCH --cpus-per-task={whatever}
+#### #SBATCH --time={whatever}
+#### #SBATCH --partition={whatever}
+
+#### starting here, add additional necessary lines
+
+#SBATCH --account project_2005718
+#SBATCH --gres=nvme:10
+
+# we may inherit some singularity-related variables from the main process
+# which are problematic.
+for V in $(export | egrep -o "(SINGULARITY|APPTAINER)[^=]*"); do
+unset $V
+done
+
+export OMP_STACKSIZE=8096
+export OMP_THREAD_LIMIT=$SLURM_CPUS_ON_NODE
+
+if [ -d "$LOCAL_SCRATCH" ] ; then
+  echo "found local scratch at $LOCAL_SCRATCH"
+  export TMPDIR=$LOCAL_SCRATCH
+  export SINGULARITY_BIND="$(realpath ${LOCAL_SCRATCH}):$(pwd)/userdir"
+  echo "binding: $SINGULARITY_BIND"
+fi
+
+export PATH="/projappl/project_2005718/OptimOTU_v2/bin:$PATH"
+
+#### below this point, lines will be added by crew.cluster to start a worker.

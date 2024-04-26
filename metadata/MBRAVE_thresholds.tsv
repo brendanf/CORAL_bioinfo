@@ -1,0 +1,16 @@
+rank	superrank	supertaxon	conf_level	threshold	f_measure
+species	kingdom	Animalia	plausible	98	NA
+genus	kingdom	Animalia	plausible	97	NA
+tribe	kingdom	Animalia	plausible	96.5	NA
+subfamily	kingdom	Animalia	plausible	96	NA
+family	kingdom	Animalia	plausible	95	NA
+order	kingdom	Animalia	plausible	93	NA
+class	kingdom	Animalia	plausible	90	NA
+phylum	kingdom	Animalia	plausible	88	NA
+species	phylum	Arthropoda	plausible	98	NA
+genus	phylum	Arthropoda	plausible	97	NA
+tribe	phylum	Arthropoda	plausible	96.5	NA
+subfamily	phylum	Arthropoda	plausible	96	NA
+family	phylum	Arthropoda	plausible	95	NA
+order	phylum	Arthropoda	plausible	93	NA
+class	phylum	Arthropoda	plausible	90	NA

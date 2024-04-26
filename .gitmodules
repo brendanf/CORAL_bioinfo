@@ -1,0 +1,3 @@
+[submodule "sh_matching_pub"]
+	path = sh_matching_pub
+	url = git@github.com:TU-NHM/sh_matching_pub.git

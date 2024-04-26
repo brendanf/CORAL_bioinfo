@@ -1,0 +1,85 @@
+set -euo pipefail
+
+# user creates $ODIR and copies input sequences to file 'all.fa' before running this script
+
+ODIR=$1
+MDIR=$2
+[ -z $3 ] && NUMTHREADS=1 || NUMTHREADS=$3
+
+INSEQ=$ODIR/all.fa
+
+if [ ! -e $INSEQ ]; then
+ echo "ERROR: all.fa not in ODIR ($ODIR)"
+ return 1
+fi
+
+BASEDIR=$(pwd)
+
+PROTAX=$BASEDIR/protaxFungi/scripts
+PDIR=$BASEDIR/protaxFungi/addedmodel
+SPIKEDB=$BASEDIR/protaxFungi/addedmodel/amptk_synmock.udb
+
+# Step 1: detect spike sequences and write non-matching sequences to 'query.fa'
+
+grep '^>' $INSEQ | cut -c2- > $ODIR/all.ids
+
+SIMFILE=$ODIR/spike.m8
+OUTSPIKE=$ODIR/spikeout
+
+echo $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $SPIKEDB -id 0.75 -maxaccepts 100 -strand both -userfields query+target+id -userout $SIMFILE -threads $NUMTHREADS
+$PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $SPIKEDB -id 0.75 -maxaccepts 100 -strand both -userfields query+target+id -userout $SIMFILE -threads $NUMTHREADS
+perl $PROTAX/spikeinfo.pl $SIMFILE > $OUTSPIKE
+perl $PROTAX/remove_spikes.pl 95 $OUTSPIKE $ODIR/all.ids > $ODIR/query.ids
+
+perl $PROTAX/fastagrep.pl $ODIR/query.ids $ODIR/all.fa > $ODIR/query.fa
+
+# Step 2: PROTAX classification for 'query.fa'
+
+INSEQ=$ODIR/query.fa
+
+if [ ! -e $INSEQ ]; then
+ echo "ERROR: query.fa not in ODIR ($ODIR)"
+ return 1
+fi
+
+SIMFILE1=$ODIR/query.m8
+OUTSINTAX=$ODIR/query.sintax
+SIMFILE2=$ODIR/query.sasintax
+
+grep '^>' $INSEQ | cut -c2- > $ODIR/query.ids
+
+echo $PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $MDIR/its2.udb -id 0.75 -maxaccepts 1000 -strand both -userfields query+target+id -userout $SIMFILE1 -threads $NUMTHREADS
+$PROTAX/usearch10.0.240_i86linux32 -usearch_global $INSEQ -db $MDIR/its2.udb -id 0.75 -maxaccepts 1000 -strand both -userfields query+target+id -userout $SIMFILE1 -threads $NUMTHREADS
+echo $PROTAX/usearch10.0.240_i86linux32 -sintax $INSEQ -db $MDIR/sintaxits2.udb -tabbedout $OUTSINTAX -strand both -threads $NUMTHREADS
+$PROTAX/usearch10.0.240_i86linux32 -sintax $INSEQ -db $MDIR/sintaxits2.udb -tabbedout $OUTSINTAX -strand both -threads $NUMTHREADS
+
+perl $PROTAX/sintax2sa.pl $MDIR/taxonomy.ascii7 $OUTSINTAX > $SIMFILE2
+
+perl $PROTAX/testsample2init.pl 1 $ODIR/query.ids > $ODIR/query1.logprob
+
+# parent probs from previous level classification
+INFO=0
+for LEVEL in 2 3 4 5 6 7
+do
+ echo "LEVEL $LEVEL" 
+ PREVLEVEL=$((LEVEL-1))
+ IFILE=$ODIR/query${PREVLEVEL}.logprob
+ OFILE=$ODIR/query${LEVEL}.logprob
+ perl $PROTAX/classify6saQlognodes.pl 0.05 $IFILE $MDIR/tax$LEVEL $MDIR/ref.tax$LEVEL $MDIR/rseqs$LEVEL $PDIR/mcmc${LEVEL}b map $SIMFILE1 $SIMFILE2  0 .1 $OFILE $INFO
+done
+
+perl $PROTAX/logprobs2bestprobs.pl $ODIR/query.ids $ODIR/query[2,3,4,5,6,7].logprob > $ODIR/bestprobs
+perl $PROTAX/fastalensize.pl $INSEQ > $ODIR/query.lensize
+
+perl $PROTAX/result_numtaxa.pl $ODIR/query[2,3,4,5,6,7].logprob > $ODIR/numdistincttaxa
+
+###################
+# .logprob files contain list of node ids and logprobs, convert node ids to taxonomic names and logprobs to probs
+# NOTE: for final output, we can add information from best matching reference sequences etc., this is just example
+
+for LEVEL in 2 3 4 5 6 7
+do
+ perl $PROTAX/nameprob.pl $MDIR/taxonomy $ODIR/query${LEVEL}.logprob > $ODIR/query${LEVEL}.nameprob
+done
+
+rm $SIMFILE1

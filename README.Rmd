@@ -1,0 +1,17 @@
+---
+output: github_document
+title: OptimOTU metabarcoding pipeline for CORAL
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+<!-- badges: start -->
+<!-- badges: end -->
+
